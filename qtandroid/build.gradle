@@ -1,0 +1,68 @@
+// This is mainly used to allow Android Studio to easily read this folder as an android project.
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:4.0.2'
+    }
+}
+
+apply plugin: 'com.android.library'
+
+dependencies {
+    implementation fileTree(dir: "libs", include: ["*.jar"])
+    implementation 'androidx.documentfile:documentfile:1.0.1'
+}
+
+repositories {
+    google()
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+}
+
+android {
+    compileSdkVersion 30
+    buildToolsVersion "30.0.3"
+
+    defaultConfig {
+        minSdkVersion 23
+        targetSdkVersion 30
+    }
+
+    sourceSets {
+        main {
+            java.srcDir 'src/'
+            resources.srcDir 'libs/'
+            manifest.srcFile 'AndroidManifest.xml'
+            res.srcDirs = ['res/']
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    android {
+        lintOptions {
+            abortOnError true
+        }
+    }
+}
+
+// task deleteJar(type: Delete) {
+//     delete 'libs/jars/QtAndroid.jar'
+// }
+//
+// task createJar(type: Copy) {
+//     from('build/intermediates/aar_main_jar/debug')
+//     into('/home/sh_zam/workspace/build-krita-arm64-v8a/i/jar')
+//     include('classes.jar')
+//     rename('classes.jar', 'QtAndroid.jar')
+// }
+//
+// createJar.dependsOn(deleteJar, build)

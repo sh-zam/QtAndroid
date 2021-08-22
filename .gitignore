@@ -1,0 +1,3 @@
+/qtandroid/build/*
+/qtandroid/.gradle/*
+/qtandroid/local.properties
