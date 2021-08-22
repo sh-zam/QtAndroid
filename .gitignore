@@ -1,3 +1,6 @@
 /qtandroid/build/*
 /qtandroid/.gradle/*
 /qtandroid/local.properties
+/local.properties
+/.idea/
+/.gradle/
