@@ -17,6 +17,7 @@ JAVASOURCES += \
     $$PATHPREFIX/QtMessageDialogHelper.java \
     $$PATHPREFIX/QtNative.java \
     $$PATHPREFIX/SAFFileManager.java \
+    $$PATHPREFIX/SAFFile.java \
     $$PATHPREFIX/CachedDocumentFile.java \
     $$PATHPREFIX/QtNativeLibrariesDir.java \
     $$PATHPREFIX/QtSurface.java \

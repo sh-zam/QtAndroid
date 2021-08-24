@@ -13,7 +13,6 @@ import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.provider.DocumentsContract;
 import android.util.Log;
-import android.util.Pair;
 import android.webkit.MimeTypeMap;
 
 import java.io.File;
@@ -21,7 +20,9 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 @SuppressWarnings("unused")
 class FileError {
@@ -82,10 +83,11 @@ public class SAFFileManager {
     private static SAFFileManager sSafFileManager;
 
     private final Context mCtx;
-    private final ArrayList<CachedDocumentFile> mCachedDocumentFiles = new ArrayList<>();
+    private final HashMap<Uri, CachedDocumentFile> mCachedDocumentFiles = new HashMap<>();
     private final HashMap<Integer, ParcelFileDescriptor> m_parcelFileDescriptors = new HashMap<>();
 
     private final FileError mError = new FileError();
+    private List<UriPermission> mCachedPermissions;
 
     SAFFileManager(Context ctx) {
         mCtx = ctx;
@@ -96,6 +98,13 @@ public class SAFFileManager {
     public static SAFFileManager instance() {
         if (sSafFileManager == null) {
             sSafFileManager = new SAFFileManager(QtNative.getContext());
+        }
+        return sSafFileManager;
+    }
+
+    public static SAFFileManager instance(Context context) {
+        if (sSafFileManager == null) {
+            sSafFileManager = new SAFFileManager(context);
         }
         return sSafFileManager;
     }
@@ -114,6 +123,10 @@ public class SAFFileManager {
                 PackageManager.PERMISSION_GRANTED;
     }
 
+    void resetCachedPermission() {
+        mCachedPermissions = mCtx.getContentResolver().getPersistedUriPermissions();
+    }
+
     /**
      * The encoding of Path segments is somewhat arbitrary and something which doesn't
      * seem very safe to rely on. So if we find a matching path we just return
@@ -127,26 +140,29 @@ public class SAFFileManager {
      * ACTION_OPEN_DOCUMENT_TREE i.e only if we have permission to the Uri.
      */
     Uri getProperlyEncodedUriWithPermissions(Uri uri, String openMode) {
-        // TODO(sh_zam): check if caching is needed?
-        List<UriPermission> permissions =
-                mCtx.getContentResolver().getPersistedUriPermissions();
-        String uriStr = uri.getPath();
+        if (mCachedPermissions == null) {
+            resetCachedPermission();
+        }
+        final String uriPath = uri.getPath();
 
-        for (int i = 0; i < permissions.size(); ++i) {
-            Uri iterUri = permissions.get(i).getUri();
-            boolean isRightPermission = permissions.get(i).isReadPermission();
+        for (int i = 0; i < mCachedPermissions.size(); ++i) {
+            Uri iterUri = mCachedPermissions.get(i).getUri();
+            boolean isRightPermission = mCachedPermissions.get(i).isReadPermission();
 
             if (!openMode.equals("r"))
-                isRightPermission = permissions.get(i).isWritePermission();
+                isRightPermission = mCachedPermissions.get(i).isWritePermission();
 
-            if (iterUri.getPath().equals(uriStr) && isRightPermission) {
+            if (iterUri.getPath().equals(uriPath) && isRightPermission) {
                 return iterUri;
             }
         }
 
         // TODO(sh_zam): check encoding
+        // TODO(sh_zam): verify if intent has to exist
         // check if we received permission from an Intent
-        return checkImplicitUriPermission(uri, openMode) ? uri : null;
+        return (QtNative.activity() != null &&
+                QtNative.activity().getIntent() != null &&
+                checkImplicitUriPermission(uri, openMode)) ? uri : null;
     }
 
     /**
@@ -162,37 +178,36 @@ public class SAFFileManager {
      * @return Uri of the newly created file or passed in url if we have
      * permission to access the document, otherwise null.
      */
-    private Uri getUriWithValidPermission(String url, String openMode) {
+    private CachedDocumentFile getDocumentFileWithValidPermissions(String url,
+                                                                   String openMode,
+                                                                   boolean dontCreateDoc) {
         final Uri uri = Uri.parse(url);
 
         // it is a file in tree, so we create a new file if "w"
         if (isTreeUri(uri)) {
-            Pair<Uri, Uri> separatedUriPair = nearestTreeUri(uri);
-            if (separatedUriPair == null) {
-                // FIXME(sh_zam): propagate error for all Log.d()s
+            SAFFile rawSafFile = nearestTreeUri(uri);
+            if (rawSafFile == null) {
                 mError.setError(FileError.PERMISSIONS_ERROR);
                 mError.setErrorString("No permission to access the Document Tree");
                 return null;
             }
 
-            CachedDocumentFile foundFile =
-                    findFileInTree(separatedUriPair.first,
-                            separatedUriPair.second.getPathSegments());
+            CachedDocumentFile foundFile = findFileInTree(rawSafFile);
 
             if (foundFile != null) {
-                return foundFile.getUri();
+                return foundFile;
             }
 
             // we shouldn't create a file here
-            if ("r".equals(openMode)) {
+            if ("r".equals(openMode) || dontCreateDoc) {
                 return null;
             }
 
-            return createFile(separatedUriPair.first, separatedUriPair.second, false);
+            return createFile(rawSafFile, false);
         } else {
             Uri resultUri = getProperlyEncodedUriWithPermissions(uri, openMode);
             if (resultUri != null) {
-                return resultUri;
+                return CachedDocumentFile.fromFileUri(mCtx, resultUri);
             }
         }
 
@@ -201,12 +216,17 @@ public class SAFFileManager {
         return null;
     }
 
+    private CachedDocumentFile getDocumentFileWithValidPermissions(String url,
+                                                                   String openMode) {
+        return getDocumentFileWithValidPermissions(url, openMode, false);
+    }
+
     // Native usage
     @SuppressWarnings("UnusedDeclaration")
     private boolean launchUri(String url, String mime) {
         Uri uri;
         if (url.startsWith("content:")) {
-            uri = getUriWithValidPermission(url, "r");
+            uri = getDocumentFileWithValidPermissions(url, "r").getUri();
             if (uri == null) {
                 Log.e(TAG, "launchUri(): No permissions to open Uri");
                 return false;
@@ -238,26 +258,28 @@ public class SAFFileManager {
 
     // Native usage
     @SuppressWarnings("UnusedDeclaration")
-    private int openFileDescriptor(String contentUrl, String openMode) {
-        int error = -1;
+    public int openFileDescriptor(String contentUrl, String openMode) {
+        final int error = -1;
 
-        Uri uri = getUriWithValidPermission(contentUrl, openMode);
+        CachedDocumentFile file =
+                getDocumentFileWithValidPermissions(contentUrl, openMode);
 
-        if (uri == null) {
+        if (file == null) {
             return error;
         }
 
+        // take this out
         try {
             ContentResolver resolver = mCtx.getContentResolver();
-            ParcelFileDescriptor fdDesc = resolver.openFileDescriptor(uri, openMode);
+            ParcelFileDescriptor fdDesc =
+                    resolver.openFileDescriptor(file.getUri(), openMode);
             m_parcelFileDescriptors.put(fdDesc.getFd(), fdDesc);
 
             mError.unsetError();
             return fdDesc.getFd();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
         } catch (Exception e) {
             Log.e(TAG, "openFileDescriptor(): Failed query: " + e);
+            mCachedDocumentFiles.remove(file.getUri());
         }
 
         mError.setError(FileError.WRITE_ERROR);
@@ -267,7 +289,7 @@ public class SAFFileManager {
 
     // Native usage
     @SuppressWarnings("UnusedDeclaration")
-    private boolean closeFileDescriptor(int fd) {
+    public boolean closeFileDescriptor(int fd) {
         ParcelFileDescriptor pfd = m_parcelFileDescriptors.get(fd);
         if (pfd == null) {
             Log.wtf(TAG, "File descriptor doesn't exist in cache");
@@ -287,132 +309,59 @@ public class SAFFileManager {
 
     // Native usage
     @SuppressWarnings("UnusedDeclaration")
-    private long getSize(String contentUrl) {
-        Uri uri = getUriWithValidPermission(contentUrl, "r");
-        long size = -1;
+    public long getSize(String contentUrl) {
+        CachedDocumentFile file =
+                getDocumentFileWithValidPermissions(contentUrl, "r");
 
-        if (uri == null) {
-            return size;
+        if (file != null) {
+            return file.getSize();
+        } else {
+            mError.setUnknownError();
+            return 0;
         }
-
-        try {
-            ContentResolver resolver = mCtx.getContentResolver();
-            final String[] columns = {DocumentsContract.Document.COLUMN_SIZE};
-            Cursor cur = resolver.query(uri, columns, null, null, null);
-
-            if (cur != null) {
-                if (cur.moveToFirst())
-                    size = cur.getLong(0);
-                cur.close();
-            }
-            mError.unsetError();
-            return size;
-        } catch (Exception e) {
-            Log.e(TAG, "getSize(): Failed query: " + e);
-        }
-
-        mError.setUnknownError();
-        return size;
     }
 
     // Native usage
     @SuppressWarnings("UnusedDeclaration")
-    private boolean exists(String contentUrl) {
-        final Uri uri = getUriWithValidPermission(contentUrl, "r");
+    public boolean exists(String contentUrl) {
+        final CachedDocumentFile file =
+                getDocumentFileWithValidPermissions(contentUrl, "r");
 
-        if (uri == null) {
+        if (file != null && file.exists()) {
+            mError.unsetError();
+            return true;
+        } else {
+            mError.setUnknownError();
             return false;
         }
-        Cursor cursor = null;
-        try {
-            final ContentResolver resolver = mCtx.getContentResolver();
-            final String[] columns = {DocumentsContract.Document.COLUMN_DOCUMENT_ID};
-            cursor = resolver.query(uri, columns, null, null, null);
-
-            mError.unsetError();
-            return cursor.getCount() > 0;
-        } catch (Exception e) {
-            Log.e(TAG, "exists(): Failed query: " + e);
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
-        }
-
-        mError.setUnknownError();
-        return false;
     }
 
     // Native usage
     @SuppressWarnings("UnusedDeclaration")
-    private boolean canWrite(String contentUrl) {
-        final Uri uri = getUriWithValidPermission(contentUrl, "w");
+    public boolean canWrite(String contentUrl) {
+        final CachedDocumentFile file =
+                getDocumentFileWithValidPermissions(contentUrl, "w");
 
-        Cursor cursor = null;
-        try {
-            final ContentResolver resolver = mCtx.getContentResolver();
-            final String[] columns = {DocumentsContract.Document.COLUMN_FLAGS,
-                    DocumentsContract.Document.COLUMN_MIME_TYPE};
-            cursor = resolver.query(uri, columns, null, null, null);
-            int flags = 0;
-            String mimeType = null;
-            if (cursor != null) {
-                if (cursor.moveToFirst()) {
-                    flags = cursor.getInt(0);
-                    mimeType = cursor.getString(1);
-                } else {
-                    return false;
-                }
-            }
-
+        if (file != null && file.canWrite()) {
             mError.unsetError();
-            if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mimeType) &&
-                    (flags & DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE) != 0) {
-                return true;
-            } else if ((flags & DocumentsContract.Document.FLAG_SUPPORTS_WRITE) != 0) {
-                return true;
-            }
-
-        } catch (Exception e) {
-            Log.e(TAG, "canWrite(): Failed query: " + e);
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
+            return true;
+        } else {
+            return false;
         }
-
-        return uri != null;
     }
 
     // Native usage
     @SuppressWarnings("UnusedDeclaration")
-    private String getFileName(String contentUrl) {
-        final Uri uri = getUriWithValidPermission(contentUrl, "r");
-        if (uri == null) {
-            return null;
-        }
-        Cursor cursor = null;
-        String filename = null;
-        try {
-            final String[] columns = {DocumentsContract.Document.COLUMN_DISPLAY_NAME};
-            cursor = mCtx.getContentResolver().query(uri, columns,
-                    null, null, null);
-            if (cursor != null) {
-                if (cursor.moveToFirst()) {
-                    filename = cursor.getString(0);
-                }
-            }
-        } catch (Exception e) {
-            mError.setUnknownError();
-            Log.e(TAG, "getFileName(): Failed query: " + e);
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
+    public String getFileName(String contentUrl) {
+        final CachedDocumentFile file =
+                getDocumentFileWithValidPermissions(contentUrl, "r");
+
+        if (file != null) {
+            mError.unsetError();
+            return file.getName();
         }
 
-        mError.unsetError();
-        return filename;
+        return null;
     }
 
     private String stringJoin(String delimiter, List<String> list) {
@@ -448,10 +397,10 @@ public class SAFFileManager {
      * Second = {@code "path1/path2"}
      *
      * @param treeUri The Tree Uri with a path appended - which may or may not exist
-     * @return returns the tree Uri that is returned from ACTION_OPEN_DOCUMENT_TREE
-     * and the separated path/file which is to be created.
+     * @return a {@link SAFFile} through which we can get the base Uri and path segments
+     * which are to be created or tested
      */
-    private Pair<Uri, Uri> nearestTreeUri(Uri treeUri) {
+    private SAFFile nearestTreeUri(Uri treeUri) {
         final List<String> paths = treeUri.getPathSegments()
                 .subList(1, treeUri.getPathSegments().size());
 
@@ -469,37 +418,79 @@ public class SAFFileManager {
             // we check the permission of the subtree
             if (testUri != null) {
                 if (i < paths.size()) {
-                    return new Pair<>(testUri, Uri.parse(stringJoin(File.separator,
-                            paths.subList(i, paths.size()))));
+                    return new SAFFile(testUri, paths.subList(i, paths.size()));
                 } else {
-                    return new Pair<>(testUri, Uri.parse(""));
+                    return new SAFFile(testUri, new ArrayList<String>());
                 }
             }
         }
 
-        Log.d(TAG, "nearestTreeUri(): uri: " + treeUri);
+        Log.d(TAG, "nearestTreeUri(): No permissions to Uri: " + treeUri);
         return null;
     }
 
     // Native usage
     @SuppressWarnings("UnusedDeclaration")
-    boolean isDir(String contentUrl) {
-        final Uri uri = Uri.parse(contentUrl);
-        if (!isTreeUri(uri)) {
-            return false;
-        }
-
-        final Pair<Uri, Uri> separatedUriPair = nearestTreeUri(uri);
-        if (separatedUriPair == null) {
-            return false;
-        }
-
+    public boolean delete(String contentUrl) {
         final CachedDocumentFile file =
-                findFileInTree(separatedUriPair.first,
-                        separatedUriPair.second.getPathSegments());
+                getDocumentFileWithValidPermissions(contentUrl, "rw", true);
         if (file == null) {
             return false;
         }
+
+        mCachedDocumentFiles.remove(file.getUri());
+        if (file.isDirectory()) {
+            invalidateCachedDocuments(file.getUri());
+        }
+        return deleteFile(file.getUri());
+    }
+
+    // Native usage
+    public String[] listFileNames(String contentUrl) {
+        final CachedDocumentFile file =
+                getDocumentFileWithValidPermissions(contentUrl, "r");
+
+
+        if (file == null || !file.isDirectory()) {
+            return null;
+        }
+
+        List<CachedDocumentFile> files = listFiles(file.getUri());
+        String[] result = new String[files.size()];
+        for (int i = 0; i < files.size(); ++i) {
+            result[i] = files.get(i).getName();
+        }
+
+        return result;
+    }
+
+    /**
+     * A dumb heuristic method to remove the subdirectories if the parent directory
+     * is removed.
+     *
+     * @param removedUri The document to be deleted
+     */
+    private void invalidateCachedDocuments(Uri removedUri) {
+        String dirname = removedUri.getLastPathSegment();
+        Iterator<Map.Entry<Uri, CachedDocumentFile>> iterator =
+                mCachedDocumentFiles.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<Uri, CachedDocumentFile> entry = iterator.next();
+            if (entry.getKey().getPath().contains(dirname)) {
+                iterator.remove();
+            }
+        }
+    }
+
+    // Native usage
+    @SuppressWarnings("UnusedDeclaration")
+    public boolean isDir(String contentUrl) {
+        final CachedDocumentFile file =
+                getDocumentFileWithValidPermissions(contentUrl, "rw", true);
+        if (file == null) {
+            return false;
+        }
+
         mError.unsetError();
         return file.isDirectory();
     }
@@ -515,19 +506,24 @@ public class SAFFileManager {
 
     // Native usage
     @SuppressWarnings("UnusedDeclaration")
-    boolean mkdir(String contentUrl, boolean createParentDirectories) {
+    public boolean mkdir(String contentUrl, boolean createParentDirectories) {
+        if (isDir(contentUrl)) {
+            return true;
+        }
+
         final Uri uri = Uri.parse(contentUrl);
         // "tree" and document id make the first two parts of the path
         if (uri.getPathSegments().size() > 3 && !createParentDirectories) {
             return false;
         }
-        final Pair<Uri, Uri> separatedUriPair = nearestTreeUri(uri);
-        if (separatedUriPair == null) {
+        final SAFFile rawSafFile = nearestTreeUri(uri);
+        if (rawSafFile == null) {
+            mError.setError(FileError.PERMISSIONS_ERROR);
+            mError.setErrorString("No permission to access the Document Tree");
             return false;
         }
 
-        if (createDirectories(separatedUriPair.first,
-                separatedUriPair.second.getPathSegments()) != null) {
+        if (createDirectories(rawSafFile) != null) {
             mError.unsetError();
             return true;
         } else {
@@ -535,7 +531,10 @@ public class SAFFileManager {
         }
     }
 
-    Uri createDirectories(Uri treeUri, List<String> pathSegments) {
+    Uri createDirectories(SAFFile file) {
+        final Uri treeUri = file.getBaseUri();
+        List<String> pathSegments = file.getSegments();
+
         Log.d(TAG, "Creating directory: " + treeUri.toString() +
                 ", segments = " + stringJoin("/", pathSegments));
 
@@ -561,20 +560,23 @@ public class SAFFileManager {
                 return null;
             }
             parent = newFile.getUri();
-            mCachedDocumentFiles.add(newFile);
+            mCachedDocumentFiles.put(newFile.getUri(), newFile);
         }
 
         mError.unsetError();
         return parent;
     }
 
-    private Uri createFile(Uri treeUri, Uri filePath, boolean force) {
-        Log.d(TAG, "Creating new file: " + treeUri + ", filename = " + filePath);
+    private CachedDocumentFile createFile(SAFFile file, boolean force) {
 
-        final List<String> pathSegments = filePath.getPathSegments();
+        List<String> pathSegments = file.getSegments();
 
-        final Uri parent = createDirectories(treeUri,
-                pathSegments.subList(0, pathSegments.size() - 1));
+        Log.d(TAG, "Creating new file: " + file.getBaseUri() + ", filename = "
+                + stringJoin(File.separator, pathSegments));
+
+        final Uri parent = createDirectories(
+                new SAFFile(file.getBaseUri(),
+                        pathSegments.subList(0, pathSegments.size() - 1)));
         if (parent == null) {
             return null;
         }
@@ -584,15 +586,15 @@ public class SAFFileManager {
 
         final CachedDocumentFile foundFile = findFile(parent, filename);
         if (foundFile != null && foundFile.isFile() && !force) {
-            return foundFile.getUri();
+            return foundFile;
         }
 
         final CachedDocumentFile newFile = createFile(parent, filename, mimeType);
         if (newFile == null) {
             return null;
         }
-        mCachedDocumentFiles.add(newFile);
-        return newFile.getUri();
+        mCachedDocumentFiles.put(newFile.getUri(), newFile);
+        return newFile;
     }
 
     private String getMimeTypeFromFilename(String filename) {
@@ -619,6 +621,7 @@ public class SAFFileManager {
                 DocumentsContract.Document.COLUMN_DISPLAY_NAME,
                 DocumentsContract.Document.COLUMN_DOCUMENT_ID,
                 DocumentsContract.Document.COLUMN_MIME_TYPE,
+                DocumentsContract.Document.COLUMN_SIZE
         };
 
         Cursor cursor = null;
@@ -635,9 +638,11 @@ public class SAFFileManager {
                 final String docId = cursor.getString(1);
                 final Uri fileUri = DocumentsContract.buildDocumentUriUsingTree(documentTreeUri, docId);
                 cachedDocumentFiles.add(new CachedDocumentFile(
+                        mCtx,
                         cursor.getString(0),  // name
                         docId,
                         cursor.getString(2),  // mimetype
+                        cursor.getLong(3),    // size
                         fileUri));
             }
         } catch (Exception e) {
@@ -654,16 +659,21 @@ public class SAFFileManager {
      * Find the file under the tree. This function can take pathSegments which
      * allow looking recursively in the document's subtree.
      *
-     * @param treeUri      treeUri which is returned from
-     *                     {@link Intent#ACTION_OPEN_DOCUMENT_TREE}
-     * @param pathSegments path to the document file
+     * @param safFile {@link SAFFile}
      * @return {@link CachedDocumentFile} if the document is found, null otherwise.
      */
-    private CachedDocumentFile findFileInTree(Uri treeUri, List<String> pathSegments) {
-        Uri parent = DocumentsContract.buildDocumentUriUsingTree(treeUri,
-                DocumentsContract.getTreeDocumentId(treeUri));
+    private CachedDocumentFile findFileInTree(SAFFile safFile) {
+        List<String> pathSegments = safFile.getSegments();
+        Uri parent = DocumentsContract.buildDocumentUriUsingTree(safFile.getBaseUri(),
+                DocumentsContract.getTreeDocumentId(safFile.getBaseUri()));
 
-        CachedDocumentFile documentFile = CachedDocumentFile.fromFileUri(parent);
+        CachedDocumentFile documentFile;
+        if (mCachedDocumentFiles.containsKey(parent)) {
+            documentFile = mCachedDocumentFiles.get(parent);
+        } else {
+            documentFile = CachedDocumentFile.fromFileUri(mCtx, parent);
+            mCachedDocumentFiles.put(documentFile.getUri(), documentFile);
+        }
 
         for (int i = 0; i < pathSegments.size(); ++i) {
             documentFile = findFile(parent, pathSegments.get(i));
@@ -697,10 +707,8 @@ public class SAFFileManager {
             final Uri expectedUri = DocumentsContract.buildDocumentUriUsingTree(documentTreeUri,
                     DocumentsContract.getDocumentId(documentTreeUri) + "/" + filename);
             // check in the cached documents first
-            for (CachedDocumentFile file : mCachedDocumentFiles) {
-                if (expectedUri.equals(file.getUri())) {
-                    return file;
-                }
+            if (mCachedDocumentFiles.containsKey(expectedUri)) {
+                return mCachedDocumentFiles.get(expectedUri);
             }
         }
 
@@ -708,6 +716,7 @@ public class SAFFileManager {
         List<CachedDocumentFile> cachedDocumentFiles = listFiles(documentTreeUri);
         for (CachedDocumentFile file : cachedDocumentFiles) {
             if (filename.equals(file.getName())) {
+                mCachedDocumentFiles.put(file.getUri(), file);
                 return file;
             }
         }
@@ -719,7 +728,7 @@ public class SAFFileManager {
         try {
             final Uri fileUri = DocumentsContract.createDocument(mCtx.getContentResolver(),
                     parent, mimeType, displayName);
-            return new CachedDocumentFile(displayName,
+            return new CachedDocumentFile(mCtx, displayName,
                     DocumentsContract.getDocumentId(fileUri),
                     mimeType,
                     fileUri);
@@ -728,6 +737,17 @@ public class SAFFileManager {
             Log.e(TAG, "Error creating a file: uri = " + parent +
                     ", displayName = " + displayName + ", mimeType = " + mimeType);
             return null;
+        }
+    }
+
+    private boolean deleteFile(Uri documentUri) {
+        try {
+            return DocumentsContract.deleteDocument(mCtx.getContentResolver(),
+                    documentUri);
+        } catch (Exception e) {
+            mError.setUnknownError();
+            Log.e(TAG, "Error creating a file: uri = " + documentUri);
+            return false;
         }
     }
 
