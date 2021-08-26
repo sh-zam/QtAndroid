@@ -16,7 +16,6 @@ import android.util.Log;
 import android.webkit.MimeTypeMap;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -88,6 +87,7 @@ public class SAFFileManager {
 
     private final FileError mError = new FileError();
     private List<UriPermission> mCachedPermissions;
+    private ArrayList<Uri> mCachedListDocumentFiles = new ArrayList<>();
 
     SAFFileManager(Context ctx) {
         mCtx = ctx;
@@ -340,7 +340,7 @@ public class SAFFileManager {
     @SuppressWarnings("UnusedDeclaration")
     public boolean canWrite(String contentUrl) {
         final CachedDocumentFile file =
-                getDocumentFileWithValidPermissions(contentUrl, "w");
+                getDocumentFileWithValidPermissions(contentUrl, "w", true);
 
         if (file != null && file.canWrite()) {
             mError.unsetError();
@@ -450,7 +450,6 @@ public class SAFFileManager {
         final CachedDocumentFile file =
                 getDocumentFileWithValidPermissions(contentUrl, "r");
 
-
         if (file == null || !file.isDirectory()) {
             return null;
         }
@@ -458,10 +457,21 @@ public class SAFFileManager {
         List<CachedDocumentFile> files = listFiles(file.getUri());
         String[] result = new String[files.size()];
         for (int i = 0; i < files.size(); ++i) {
-            result[i] = files.get(i).getName();
+            CachedDocumentFile docFile = files.get(i);
+            result[i] = docFile.getName();
+            mCachedDocumentFiles.put(docFile.getUri(), docFile);
+            mCachedListDocumentFiles.add(docFile.getUri());
         }
 
         return result;
+    }
+
+    // Native usage
+    void resetListCache() {
+        for (Uri uri : mCachedListDocumentFiles) {
+            mCachedDocumentFiles.remove(uri);
+        }
+        mCachedListDocumentFiles.clear();
     }
 
     /**
@@ -501,6 +511,29 @@ public class SAFFileManager {
         } else {
             final List<String> paths = uri.getPathSegments();
             return (paths.size() >= 2 && PATH_TREE.equals(paths.get(0)));
+        }
+    }
+
+    // Native usage
+    public boolean isTreeUri(String contentUrl) {
+        return isTreeUri(Uri.parse(contentUrl));
+    }
+
+    public boolean rename(String contentUrl, String displayName) {
+        final CachedDocumentFile file =
+                getDocumentFileWithValidPermissions(contentUrl, "rw", true);
+        if (file == null) {
+            return false;
+        }
+
+        final Uri oldUri = file.getUri();
+        if (file.rename(displayName)) {
+            mCachedDocumentFiles.remove(oldUri);
+            mCachedDocumentFiles.put(file.getUri(), file);
+            resetCachedPermission();
+            return true;
+        } else {
+            return false;
         }
     }
 
@@ -746,7 +779,7 @@ public class SAFFileManager {
                     documentUri);
         } catch (Exception e) {
             mError.setUnknownError();
-            Log.e(TAG, "Error creating a file: uri = " + documentUri);
+            Log.e(TAG, "Error deleting a file: uri = " + documentUri);
             return false;
         }
     }

@@ -28,7 +28,6 @@ public class SAFFileManagerTest {
             InstrumentationRegistry.getInstrumentation().getTargetContext();
     Uri uri = ctx.getContentResolver().getPersistedUriPermissions().get(0).getUri();
     String uriStr = ctx.getContentResolver().getPersistedUriPermissions().get(0).getUri().toString();
-    Uri documentUri = DocumentsContract.buildDocumentUriUsingTree(uri, DocumentsContract.getTreeDocumentId(uri));
     SAFFileManager manager = SAFFileManager.instance(ctx);
 
     @Test
@@ -45,5 +44,4 @@ public class SAFFileManagerTest {
         assertTrue(manager.isDir(uriStr));
         assertFalse(manager.isDir(uriStr + System.currentTimeMillis()));
     }
-
 }

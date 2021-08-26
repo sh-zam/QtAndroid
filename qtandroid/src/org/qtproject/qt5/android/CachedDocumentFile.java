@@ -11,12 +11,12 @@ import android.util.Log;
 public class CachedDocumentFile {
 
     private static final String TAG = "CachedDocumentFile";
-    private final String name;
+    private String name;
     private final String mimeType;
     private final String documentId;
     // TODO(sh_zam): do something
     private long size;
-    private final Uri uri;
+    private Uri uri;
     private final Context ctx;
     private Boolean exists = null;
     private Boolean writable = null;
@@ -57,7 +57,7 @@ public class CachedDocumentFile {
                         uri);
             }
         } catch (Exception e) {
-            Log.e(TAG, "fromFileUri(): " + uri);
+            Log.e(TAG, "fromFileUri(): " + e);
         } finally {
             if (cursor != null)
                 cursor.close();
@@ -94,6 +94,22 @@ public class CachedDocumentFile {
 
     public long getSize() {
         return queryForLong(DocumentsContract.Document.COLUMN_SIZE, 0);
+    }
+
+    public boolean rename(String displayName) {
+        try {
+            final Uri newUri = DocumentsContract.renameDocument(
+                    ctx.getContentResolver(), uri, displayName);
+            if (newUri == null || newUri == uri) {
+                return false;
+            }
+            this.name = displayName;
+            this.uri = newUri;
+            return true;
+        } catch (Exception e) {
+            Log.e(TAG, "rename(): Rename failed: " + e);
+            return false;
+        }
     }
 
     public boolean canWrite() {

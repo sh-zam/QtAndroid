@@ -8,6 +8,7 @@ package com.sh_zam.qtandroid_test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
@@ -80,6 +81,7 @@ public class SAFCreateFilesTest {
                 String path = "/" + name;
                 assertTrue(manager.exists(uriStr + path));
                 assertTrue(manager.canWrite(uriStr + path));
+                assertTrue(manager.exists(uriStr + path));
                 assertEquals(manager.getFileName(uriStr + path), name);
                 assertFalse(manager.isDir(uriStr + path));
             }
@@ -128,6 +130,48 @@ public class SAFCreateFilesTest {
             assertFalse(manager.isDir(fileUrl));
         }
     }
+
+    @Test
+    public void renameFiles() {
+        ArrayList<Integer> fileDescriptors = new ArrayList<>();
+
+        int numFiles = 5;
+        for (int i = 0; i < numFiles; ++i) {
+            String name = i + ".test";
+            String path = uriStr + "/" + name;
+
+            fileDescriptors.add(manager.openFileDescriptor(path, "rw"));
+            assertTrue(fileDescriptors.get(fileDescriptors.size() - 1) > 0);
+
+            String newName = i + ".test-renamed";
+            String newPath = uriStr + "/" + newName;
+
+            rename(path, name, newPath, newName);
+            rename(newPath, newName, path, name);
+            rename(path, name, newPath, newName);
+
+            assertTrue(manager.delete(newPath));
+
+            assertFalse(manager.isDir(newPath));
+            assertFalse(manager.exists(newPath));
+
+            assertTrue(manager.closeFileDescriptor(fileDescriptors.get(i)));
+        }
+    }
+
+    private void rename(String path, String name, String newPath, String newName) {
+        assertTrue(manager.rename(path, newName));
+        assertTrue(manager.exists(newPath));
+        assertTrue(manager.canWrite(newPath));
+        assertEquals(manager.getFileName(newPath), newName);
+        assertFalse(manager.isDir(path));
+
+        assertFalse(manager.exists(path));
+        assertFalse(manager.canWrite(path));
+        assertNotEquals(manager.getFileName(path), name);
+        assertFalse(manager.isDir(path));
+    }
+
 
     /* test the column size
     @Test
