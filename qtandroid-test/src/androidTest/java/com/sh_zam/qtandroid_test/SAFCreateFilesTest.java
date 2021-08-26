@@ -99,6 +99,7 @@ public class SAFCreateFilesTest {
     @Test
     public void nestedFileCreation() {
         nestedFileCreationFromRoot("//one/two/three/four /five/ six");
+        nestedFileCreationFromRoot("//one/two/////three/four /////////////five/ six");
 
         // TODO(sh_zam): this fails expectedly, we should implement a failsafe in nearestTreeUri
         // nestedFileCreationFromRoot("/one%2Ftwo%2Fthree%2Ffour %2Ffive%2F six");

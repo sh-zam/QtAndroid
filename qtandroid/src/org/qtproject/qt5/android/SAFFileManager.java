@@ -87,7 +87,7 @@ public class SAFFileManager {
 
     private final FileError mError = new FileError();
     private List<UriPermission> mCachedPermissions;
-    private ArrayList<Uri> mCachedListDocumentFiles = new ArrayList<>();
+    private final ArrayList<Uri> mCachedListDocumentFiles = new ArrayList<>();
 
     SAFFileManager(Context ctx) {
         mCtx = ctx;
@@ -529,6 +529,7 @@ public class SAFFileManager {
         final Uri oldUri = file.getUri();
         if (file.rename(displayName)) {
             mCachedDocumentFiles.remove(oldUri);
+            invalidateCachedDocuments(oldUri);
             mCachedDocumentFiles.put(file.getUri(), file);
             resetCachedPermission();
             return true;

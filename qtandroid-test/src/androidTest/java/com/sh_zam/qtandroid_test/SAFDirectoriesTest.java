@@ -7,6 +7,7 @@
 package com.sh_zam.qtandroid_test;
 
 
+import static junit.framework.TestCase.assertEquals;
 import static junit.framework.TestCase.assertFalse;
 import static junit.framework.TestCase.assertTrue;
 
@@ -29,8 +30,6 @@ public class SAFDirectoriesTest {
     String uriStr = uri.toString();
     SAFFileManager manager = SAFFileManager.instance(ctx);
 
-
-    ArrayList<String> documentUris = new ArrayList<>();
 
     @Test
     synchronized public void createDirectoriesOneByOne() {
@@ -74,5 +73,43 @@ public class SAFDirectoriesTest {
         assertTrue(manager.delete(uriStr + "/0"));
         assertFalse(manager.exists(uriStr + "/0"));
         assertFalse(manager.isDir(uriStr + "/0"));
+    }
+
+    @Test
+    public void renameDirectoriesParentToChild() {
+        final int count = 15;
+
+        String pathDir = "/";
+        for (int i = 0; i < count; ++i) {
+            pathDir = pathDir + i + "/";
+        }
+
+        final String finalPath = uriStr + pathDir;
+
+        // manager.mCachedDocumentFiles.clear();
+        assertTrue(manager.mkdir(finalPath, true));
+        assertTrue(manager.isDir(finalPath));
+
+        String curPath = uriStr + "/";
+        String oldPath = curPath;
+        String newPath = curPath;
+        for (int i = 0; i < count; ++i) {
+            oldPath = oldPath + i + "/";
+            curPath = newPath + "/" + i;
+
+            String newName = String.valueOf(i + 100);
+            newPath = newPath + "/" + newName;
+
+            assertTrue(manager.rename(curPath, newName));
+            assertTrue(manager.exists(newPath));
+            assertTrue(manager.isDir(newPath));
+
+            assertFalse(manager.exists(curPath));
+            assertFalse(manager.exists(oldPath));
+
+        }
+        // TODO(sh_zam): design of caching
+        // assertEquals(16, manager.mCachedDocumentFiles.size());
+        assertTrue(manager.delete(uriStr + "/100"));
     }
 }
