@@ -9,6 +9,7 @@ package com.sh_zam.qtandroid_test;
 
 import static junit.framework.TestCase.assertEquals;
 import static junit.framework.TestCase.assertFalse;
+import static junit.framework.TestCase.assertNull;
 import static junit.framework.TestCase.assertTrue;
 
 import android.content.Context;
@@ -98,18 +99,56 @@ public class SAFDirectoriesTest {
             curPath = newPath + "/" + i;
 
             String newName = String.valueOf(i + 100);
+            String curName = String.valueOf(i);
             newPath = newPath + "/" + newName;
 
-            assertTrue(manager.rename(curPath, newName));
-            assertTrue(manager.exists(newPath));
-            assertTrue(manager.isDir(newPath));
-
-            assertFalse(manager.exists(curPath));
-            assertFalse(manager.exists(oldPath));
-
+            renameDirectory(curPath, newPath, newName);
+            renameDirectory(newPath, curPath, curName);
+            renameDirectory(curPath, newPath, newName);
         }
         // TODO(sh_zam): design of caching
         // assertEquals(16, manager.mCachedDocumentFiles.size());
         assertTrue(manager.delete(uriStr + "/100"));
+    }
+
+    @Test
+    public void renameDirectoriesChildToParent() {
+        final int count = 15;
+
+        String pathDir = "";
+        for (int i = 0; i < count; ++i) {
+            pathDir = pathDir + "/" + i;
+        }
+
+        pathDir = uriStr + pathDir;
+        // manager.mCachedDocumentFiles.clear();
+        assertTrue(manager.mkdir(pathDir, true));
+        assertTrue(manager.isDir(pathDir));
+
+        for (int i = count - 1; i >= 0; --i) {
+            String curPath = pathDir;
+            String newName = String.valueOf(i + 100);
+            String curName = String.valueOf(i);
+
+            pathDir = pathDir.substring(0, pathDir.lastIndexOf("/"));
+            String newPath = pathDir + "/" + newName;
+            renameDirectory(curPath, newPath, newName);
+            renameDirectory(newPath, curPath, curName);
+            renameDirectory(curPath, newPath, newName);
+        }
+        // assertEquals(16, manager.mCachedDocumentFiles.size());
+        assertTrue(manager.delete(uriStr + "/100"));
+    }
+
+    private void renameDirectory(String curPath, String newPath, String newName) {
+        assertTrue(manager.exists(curPath));
+
+        assertTrue(manager.rename(curPath, newName));
+        assertTrue(manager.exists(newPath));
+        assertTrue(manager.isDir(newPath));
+
+        assertEquals(newName, manager.getFileName(newPath));
+        assertNull(manager.getFileName(curPath));
+        assertFalse(manager.exists(curPath));
     }
 }
