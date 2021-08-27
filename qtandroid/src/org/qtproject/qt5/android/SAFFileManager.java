@@ -259,32 +259,34 @@ public class SAFFileManager {
     // Native usage
     @SuppressWarnings("UnusedDeclaration")
     public int openFileDescriptor(String contentUrl, String openMode) {
-        final int error = -1;
+        int retry = 0;
+        while (retry < 2) {
+            CachedDocumentFile file =
+                    getDocumentFileWithValidPermissions(contentUrl, openMode);
 
-        CachedDocumentFile file =
-                getDocumentFileWithValidPermissions(contentUrl, openMode);
+            if (file == null) {
+                return -1;
+            }
 
-        if (file == null) {
-            return error;
-        }
+            // take this out
+            try {
+                ContentResolver resolver = mCtx.getContentResolver();
+                ParcelFileDescriptor fdDesc =
+                        resolver.openFileDescriptor(file.getUri(), openMode);
+                m_parcelFileDescriptors.put(fdDesc.getFd(), fdDesc);
 
-        // take this out
-        try {
-            ContentResolver resolver = mCtx.getContentResolver();
-            ParcelFileDescriptor fdDesc =
-                    resolver.openFileDescriptor(file.getUri(), openMode);
-            m_parcelFileDescriptors.put(fdDesc.getFd(), fdDesc);
-
-            mError.unsetError();
-            return fdDesc.getFd();
-        } catch (Exception e) {
-            Log.e(TAG, "openFileDescriptor(): Failed query: " + e);
-            mCachedDocumentFiles.remove(file.getUri());
+                mError.unsetError();
+                return fdDesc.getFd();
+            } catch (Exception e) {
+                Log.w(TAG, "openFileDescriptor(): Failed query: " + e);
+                mCachedDocumentFiles.remove(file.getUri());
+                retry++;
+            }
         }
 
         mError.setError(FileError.WRITE_ERROR);
         mError.setErrorString("Couldn't open file for writing");
-        return error;
+        return -1;
     }
 
     // Native usage
@@ -681,6 +683,9 @@ public class SAFFileManager {
             }
         } catch (Exception e) {
             Log.e(TAG, "Invalid document Uri: " + documentTreeUri);
+            // TODO(sh_zam): a test is needed
+            mCachedDocumentFiles.remove(documentTreeUri);
+            invalidateCachedDocuments(documentTreeUri);
         } finally {
             if (cursor != null)
                 cursor.close();

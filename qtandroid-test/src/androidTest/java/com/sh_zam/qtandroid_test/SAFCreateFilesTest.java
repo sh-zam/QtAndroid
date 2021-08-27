@@ -13,6 +13,7 @@ import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 import android.net.Uri;
+import android.provider.DocumentsContract;
 import android.support.test.InstrumentationRegistry;
 import android.support.test.runner.AndroidJUnit4;
 
@@ -20,6 +21,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.qtproject.qt5.android.SAFFileManager;
 
+import java.io.FileNotFoundException;
 import java.util.ArrayList;
 
 @RunWith(AndroidJUnit4.class)
@@ -30,34 +32,62 @@ public class SAFCreateFilesTest {
     String uriStr = uri.toString();
     SAFFileManager manager = SAFFileManager.instance(ctx);
 
-
-    @Test
-    public void createFilesWithoutDuplicates() {
+    private void createSimple() {
         ArrayList<String> documentUris = new ArrayList<>();
         ArrayList<Integer> fileDescriptors = new ArrayList<>();
 
         int numFiles = 20;
         for (int i = 0; i < numFiles; ++i) {
             String name = i + ".test";
-            String path = "/" + name;
-            documentUris.add(uriStr + path);
-            fileDescriptors.add(manager.openFileDescriptor(uriStr + path, "rw"));
+            String path = uriStr + "/" + name;
+            documentUris.add(path);
+            fileDescriptors.add(manager.openFileDescriptor(path, "rw"));
             assertTrue(fileDescriptors.get(fileDescriptors.size() - 1) > 0);
         }
         for (int i = 0; i < numFiles; ++i) {
             String name = i + ".test";
-            String path = "/" + name;
-            assertTrue(manager.exists(uriStr + path));
-            assertTrue(manager.canWrite(uriStr + path));
-            assertEquals(manager.getFileName(uriStr + path), name);
-            assertFalse(manager.isDir(uriStr + path));
+            String path = uriStr + "/" + name;
+            assertTrue(manager.exists(path));
+            assertTrue(manager.canWrite(path));
+            assertEquals(manager.getFileName(path), name);
+            assertFalse(manager.isDir(path));
 
             assertTrue(manager.closeFileDescriptor(fileDescriptors.get(i)));
-            assertTrue(manager.delete(documentUris.get(i)));
-
-            assertFalse(manager.isDir(uriStr + path));
-            assertFalse(manager.exists(uriStr + path));
         }
+    }
+
+    private void deleteSimple() {
+        int numFiles = 20;
+        for (int i = 0; i < numFiles; ++i) {
+            String name = i + ".test";
+            String path = uriStr + "/" + name;
+            assertTrue(manager.delete(path));
+
+            assertFalse(manager.isDir(path));
+            assertFalse(manager.exists(path));
+        }
+    }
+
+    private void deleteFilesQuietly() throws FileNotFoundException {
+        final Uri parent = DocumentsContract.buildDocumentUriUsingTree(uri,
+                DocumentsContract.getTreeDocumentId(uri));
+
+        int numFiles = 20;
+        for (int i = 0; i < numFiles; ++i) {
+            Uri fileUri = Uri.parse(parent.toString() + "%2F" + i + ".test");
+            if (!DocumentsContract.deleteDocument(ctx.getContentResolver(), fileUri)) {
+                throw new FileNotFoundException("Something wrong with the test");
+            }
+        }
+    }
+
+    @Test
+    public void createFilesWithoutDuplicates() throws FileNotFoundException {
+        // DocumentsContract.Path p = DocumentsContract.findDocumentPath(ctx.getContentResolver(), test);
+        createSimple();
+        deleteFilesQuietly();
+        createSimple();
+        deleteSimple();
     }
 
     @Test
