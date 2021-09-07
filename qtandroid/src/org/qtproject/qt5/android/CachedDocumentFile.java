@@ -107,6 +107,19 @@ public class CachedDocumentFile {
             this.uri = newUri;
             return true;
         } catch (Exception e) {
+            // HACK: see https://crbug.com/1246925.
+            if (isArc()) {
+                String oldUriStr = uri.toString();
+                this.uri = Uri.parse(oldUriStr.replaceFirst(this.name + "$", displayName));
+                this.exists = null;
+                if (exists()) {
+                    this.name = displayName;
+                    return true;
+                } else {
+                    this.uri = Uri.parse(oldUriStr);
+                    return false;
+                }
+            }
             Log.e(TAG, "rename(): Rename failed: " + e);
             return false;
         }
@@ -204,4 +217,9 @@ public class CachedDocumentFile {
         return false;
     }
 
+    // we need some workarounds on ChromeOS
+    public static boolean isArc() {
+        return (Build.DEVICE != null) && Build.DEVICE.matches(".+_cheets|cheets_.+");
+    }
 }
+
