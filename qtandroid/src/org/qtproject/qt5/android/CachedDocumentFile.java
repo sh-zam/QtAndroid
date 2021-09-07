@@ -4,6 +4,7 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.DocumentsContract;
 import android.text.TextUtils;
 import android.util.Log;
@@ -15,13 +16,13 @@ public class CachedDocumentFile {
     private final String mimeType;
     private final String documentId;
     // TODO(sh_zam): do something
-    private long size;
+    private Integer size;
     private Uri uri;
     private final Context ctx;
     private Boolean exists = null;
     private Boolean writable = null;
 
-    public CachedDocumentFile(Context context, String name, String documentId, String mimeType, long size, Uri uri) {
+    public CachedDocumentFile(Context context, String name, String documentId, String mimeType, Integer size, Uri uri) {
         this.name = name;
         this.documentId = documentId;
         this.mimeType = mimeType;
@@ -48,12 +49,11 @@ public class CachedDocumentFile {
             cursor = resolver.query(uri, columns, null, null, null);
 
             if (cursor.moveToFirst()) {
-                return new CachedDocumentFile(
-                        context,
-                        cursor.getString(0),  // display name
-                        cursor.getString(1),  // document_id
-                        cursor.getString(2),  // mimetype
-                        cursor.getLong(3),    // size
+                return new CachedDocumentFile(context,
+                        SAFUtils.getColumnValStringOrNull(cursor, DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+                        SAFUtils.getColumnValStringOrNull(cursor, DocumentsContract.Document.COLUMN_DOCUMENT_ID),
+                        SAFUtils.getColumnValStringOrNull(cursor, DocumentsContract.Document.COLUMN_MIME_TYPE),
+                        SAFUtils.getColumnValIntegerOrDefault(cursor, DocumentsContract.Document.COLUMN_SIZE, -1),
                         uri);
             }
         } catch (Exception e) {
@@ -116,6 +116,7 @@ public class CachedDocumentFile {
         if (writable != null) {
             return writable;
         }
+        writable = false;
         Cursor cursor = null;
         try {
             final ContentResolver resolver = ctx.getContentResolver();
@@ -126,10 +127,10 @@ public class CachedDocumentFile {
             String mimeType = null;
             if (cursor != null) {
                 if (cursor.moveToFirst()) {
-                    flags = cursor.getInt(0);
-                    mimeType = cursor.getString(1);
-                } else {
-                    writable = false;
+                    flags = SAFUtils.getColumnValIntegerOrDefault(cursor,
+                            DocumentsContract.Document.COLUMN_FLAGS, 0);
+                    mimeType = SAFUtils.getColumnValStringOrNull(cursor,
+                            DocumentsContract.Document.COLUMN_MIME_TYPE);
                 }
             }
 

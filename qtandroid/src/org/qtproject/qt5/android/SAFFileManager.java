@@ -671,14 +671,13 @@ public class SAFFileManager {
             }
 
             while (cursor.moveToNext()) {
-                final String docId = cursor.getString(1);
+                final String docId = SAFUtils.getColumnValStringOrNull(cursor, DocumentsContract.Document.COLUMN_DOCUMENT_ID);
                 final Uri fileUri = DocumentsContract.buildDocumentUriUsingTree(documentTreeUri, docId);
-                cachedDocumentFiles.add(new CachedDocumentFile(
-                        mCtx,
-                        cursor.getString(0),  // name
+                cachedDocumentFiles.add(new CachedDocumentFile(mCtx,
+                        SAFUtils.getColumnValStringOrNull(cursor, DocumentsContract.Document.COLUMN_DISPLAY_NAME),
                         docId,
-                        cursor.getString(2),  // mimetype
-                        cursor.getLong(3),    // size
+                        SAFUtils.getColumnValStringOrNull(cursor, DocumentsContract.Document.COLUMN_MIME_TYPE),
+                        SAFUtils.getColumnValIntegerOrDefault(cursor, DocumentsContract.Document.COLUMN_SIZE, -1),
                         fileUri));
             }
         } catch (Exception e) {
