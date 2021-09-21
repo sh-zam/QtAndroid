@@ -40,14 +40,12 @@
 
 package org.qtproject.qt5.android;
 
-import android.app.Activity;
 import android.content.Context;
 import android.graphics.PixelFormat;
+import android.view.MotionEvent;
+import android.view.PointerIcon;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
 
 public class QtSurface extends SurfaceView implements SurfaceHolder.Callback
 {
@@ -86,5 +84,10 @@ public class QtSurface extends SurfaceView implements SurfaceHolder.Callback
     public void surfaceDestroyed(SurfaceHolder holder)
     {
         QtNative.setSurface(getId(), null, 0, 0);
+    }
+
+    @Override
+    public PointerIcon onResolvePointerIcon(MotionEvent event, int pointerIndex) {
+        return QtPointerIcon.instance().getIcon();
     }
 }
