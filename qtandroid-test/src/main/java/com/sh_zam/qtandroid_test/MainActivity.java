@@ -17,7 +17,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        Button mButton = findViewById(R.id.open_action_button);
+        Button mButton = findViewById(R.id.select_directory_button);
 
         mButton.setOnClickListener(view -> {
             Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
