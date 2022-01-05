@@ -7,6 +7,7 @@
 package com.sh_zam.qtandroid_test;
 
 
+import static android.content.Context.MODE_PRIVATE;
 import static junit.framework.TestCase.assertEquals;
 import static junit.framework.TestCase.assertFalse;
 import static junit.framework.TestCase.assertNull;
@@ -27,7 +28,8 @@ import java.util.ArrayList;
 public class SAFDirectoriesTest {
     Context ctx =
             InstrumentationRegistry.getInstrumentation().getTargetContext();
-    Uri uri = ctx.getContentResolver().getPersistedUriPermissions().get(0).getUri();
+    Uri uri = Uri.parse(ctx.getSharedPreferences("config", MODE_PRIVATE)
+            .getString(MainActivity.KEYS[MainActivity.DIRECTORY_REQUEST_CODE], null));
     String uriStr = uri.toString();
     SAFFileManager manager = SAFFileManager.instance(ctx);
 

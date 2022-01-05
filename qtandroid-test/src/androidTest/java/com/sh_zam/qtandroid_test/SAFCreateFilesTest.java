@@ -6,6 +6,7 @@
 
 package com.sh_zam.qtandroid_test;
 
+import static android.content.Context.MODE_PRIVATE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -28,7 +29,8 @@ import java.util.ArrayList;
 public class SAFCreateFilesTest {
     Context ctx =
             InstrumentationRegistry.getInstrumentation().getTargetContext();
-    Uri uri = ctx.getContentResolver().getPersistedUriPermissions().get(0).getUri();
+    Uri uri = Uri.parse(ctx.getSharedPreferences("config", MODE_PRIVATE)
+            .getString(MainActivity.KEYS[MainActivity.DIRECTORY_REQUEST_CODE], null));
     String uriStr = uri.toString();
     SAFFileManager manager = SAFFileManager.instance(ctx);
 

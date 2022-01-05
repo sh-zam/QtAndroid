@@ -1,6 +1,9 @@
 package com.sh_zam.qtandroid_test;
 
+import static android.content.Context.MODE_PRIVATE;
+
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.provider.DocumentsContract;
 import android.support.test.InstrumentationRegistry;
@@ -26,8 +29,9 @@ public class SAFFileManagerTest {
     final String TAG = "SAFFileManagerTest";
     Context ctx =
             InstrumentationRegistry.getInstrumentation().getTargetContext();
-    Uri uri = ctx.getContentResolver().getPersistedUriPermissions().get(0).getUri();
-    String uriStr = ctx.getContentResolver().getPersistedUriPermissions().get(0).getUri().toString();
+    Uri uri = Uri.parse(ctx.getSharedPreferences("config", MODE_PRIVATE)
+            .getString(MainActivity.KEYS[MainActivity.DIRECTORY_REQUEST_CODE], null));
+    String uriStr = uri.toString();
     SAFFileManager manager = SAFFileManager.instance(ctx);
 
     @Test

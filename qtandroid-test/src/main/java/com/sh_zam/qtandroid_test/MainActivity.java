@@ -1,6 +1,7 @@
 package com.sh_zam.qtandroid_test;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
@@ -9,7 +10,9 @@ import android.util.Log;
 import android.widget.Button;
 
 public class MainActivity extends AppCompatActivity {
-    private static final int REQUEST_CODE = 1;
+    public static final int DIRECTORY_REQUEST_CODE = 0;
+    public static final int FILE_REQUEST_CODE = 1;
+    public static final String[] KEYS = new String[] {"directory_tree", "file"};
 
     private static final String TAG = "MainActivity";
 
@@ -18,12 +21,17 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         Button mButton = findViewById(R.id.select_directory_button);
+        Button selectFileButton = findViewById(R.id.select_file_button);
 
         mButton.setOnClickListener(view -> {
             Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
-            startActivityForResult(i, REQUEST_CODE);
+            startActivityForResult(i, DIRECTORY_REQUEST_CODE);
         });
-
+        selectFileButton.setOnClickListener(view -> {
+            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            i.setType("*/*");
+            startActivityForResult(i, FILE_REQUEST_CODE);
+        });
     }
 
     @Override
@@ -33,7 +41,7 @@ public class MainActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (resultCode == RESULT_OK) {
-            if (requestCode == REQUEST_CODE) {
+            if (requestCode == DIRECTORY_REQUEST_CODE || requestCode == FILE_REQUEST_CODE) {
                 assert data != null;
                 Uri uri = data.getData();
                 if (uri == null) {
@@ -41,11 +49,23 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 }
                 getApplicationContext().getContentResolver()
-                        .takePersistableUriPermission(uri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                        .takePersistableUriPermission(uri,
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                        | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                writeConfig(requestCode, uri.toString());
             }
         } else {
             Log.wtf(TAG, "Result failed: " + resultCode);
         }
+    }
+
+    void writeConfig(int code, String uri) {
+        assert (code >= 0 && code <= 1);
+        SharedPreferences sharedPref = getSharedPreferences("config", MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPref.edit();
+
+        editor.putString(KEYS[code], uri);
+        editor.apply();
     }
 
 }
