@@ -108,7 +108,7 @@ public class CachedDocumentFile {
             return true;
         } catch (Exception e) {
             // HACK: see https://crbug.com/1246925.
-            if (isArc()) {
+            if (SAFFileManager.isArc()) {
                 String oldUriStr = uri.toString();
                 this.uri = Uri.parse(oldUriStr.replaceFirst(this.name + "$", displayName));
                 this.exists = null;
@@ -215,11 +215,6 @@ public class CachedDocumentFile {
             return ((CachedDocumentFile) other).getUri().equals(this.getUri());
         }
         return false;
-    }
-
-    // we need some workarounds on ChromeOS
-    public static boolean isArc() {
-        return (Build.DEVICE != null) && Build.DEVICE.matches(".+_cheets|cheets_.+");
     }
 }
 

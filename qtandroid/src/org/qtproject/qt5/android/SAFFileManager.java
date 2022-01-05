@@ -344,12 +344,18 @@ public class SAFFileManager {
         final CachedDocumentFile file =
                 getDocumentFileWithValidPermissions(contentUrl, "w", true);
 
-        if (file != null && file.canWrite()) {
-            mError.unsetError();
-            return true;
-        } else {
-            return false;
+        if (file != null) {
+            if (file.canWrite()) {
+                mError.unsetError();
+                return true;
+            } else if (isArc()) {
+                // HACK: some files on ChromeOS don't have file flags! So, if
+                // we have write permissions on the Uri, it seems we can assume
+                // FLAG_SUPPORTS_WRITE
+                return true;
+            }
         }
+        return false;
     }
 
     // Native usage
@@ -791,5 +797,10 @@ public class SAFFileManager {
 
     private CachedDocumentFile createDirectory(Uri parent, String displayName) {
         return createFile(parent, displayName, DocumentsContract.Document.MIME_TYPE_DIR);
+    }
+
+    // we need some workarounds on ChromeOS
+    public static boolean isArc() {
+        return (Build.DEVICE != null) && Build.DEVICE.matches(".+_cheets|cheets_.+");
     }
 }
