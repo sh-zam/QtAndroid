@@ -9,6 +9,9 @@ import android.os.Bundle;
 import android.util.Log;
 import android.widget.Button;
 
+import java.util.HashSet;
+import java.util.Set;
+
 public class MainActivity extends AppCompatActivity {
     public static final int DIRECTORY_REQUEST_CODE = 0;
     public static final int FILE_REQUEST_CODE = 1;
@@ -64,7 +67,23 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferences sharedPref = getSharedPreferences("config", MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPref.edit();
 
-        editor.putString(KEYS[code], uri);
+        try {
+            sharedPref.getStringSet(KEYS[code], null);
+        } catch (ClassCastException e) {
+            editor.remove(KEYS[code]);
+            editor.commit();
+        }
+
+        Set<String> originalSet = sharedPref.getStringSet(KEYS[code], null);
+        HashSet<String> set;
+        if (originalSet == null) {
+            set = new HashSet<>();
+        } else {
+            set = new HashSet<>(originalSet);
+        }
+        set.add(uri);
+
+        editor.putStringSet(KEYS[code], set);
         editor.apply();
     }
 

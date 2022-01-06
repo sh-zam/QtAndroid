@@ -25,8 +25,11 @@ import org.qtproject.qt5.android.SAFFileManager;
 public class SAFFilesAccessTest {
     Context ctx =
             InstrumentationRegistry.getInstrumentation().getTargetContext();
-    Uri uri = Uri.parse(ctx.getSharedPreferences("config", MODE_PRIVATE)
-            .getString(MainActivity.KEYS[MainActivity.FILE_REQUEST_CODE], null));
+    Uri uri = Uri.parse(
+            ctx.getSharedPreferences("config", MODE_PRIVATE)
+                    .getStringSet(MainActivity.KEYS[MainActivity.FILE_REQUEST_CODE], null)
+                    .iterator()
+                    .next());
     String uriStr = uri.toString();
     SAFFileManager manager = SAFFileManager.instance(ctx);
 

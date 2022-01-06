@@ -28,8 +28,11 @@ import java.util.ArrayList;
 public class SAFDirectoriesTest {
     Context ctx =
             InstrumentationRegistry.getInstrumentation().getTargetContext();
-    Uri uri = Uri.parse(ctx.getSharedPreferences("config", MODE_PRIVATE)
-            .getString(MainActivity.KEYS[MainActivity.DIRECTORY_REQUEST_CODE], null));
+    Uri uri = Uri.parse(
+            ctx.getSharedPreferences("config", MODE_PRIVATE)
+                    .getStringSet(MainActivity.KEYS[MainActivity.DIRECTORY_REQUEST_CODE], null)
+                    .iterator()
+                    .next());
     String uriStr = uri.toString();
     SAFFileManager manager = SAFFileManager.instance(ctx);
 
