@@ -9,6 +9,7 @@ package com.sh_zam.qtandroid_test;
 import static android.content.Context.MODE_PRIVATE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
@@ -47,6 +48,13 @@ public class SAFFilesAccessTest {
         assertFalse(manager.isDir(uriStr));
         assertTrue(manager.canWrite(uriStr));
     }
+
+    // Known failures on ChromeOS:
+    // @Test
+    // public void writeToFile() {
+    //     // only for some locations
+    //     assertNotEquals(manager.openFileDescriptor(uriStr, "rw"), -1);
+    // }
 
     // @Test
     // public void rename() {
