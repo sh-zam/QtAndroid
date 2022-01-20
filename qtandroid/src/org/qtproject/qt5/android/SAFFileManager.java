@@ -258,7 +258,7 @@ public class SAFFileManager {
 
     // Native usage
     @SuppressWarnings("UnusedDeclaration")
-    public int openFileDescriptor(String contentUrl, String openMode) {
+    synchronized public int openFileDescriptor(String contentUrl, String openMode) {
         int retry = 0;
         while (retry < 2) {
             CachedDocumentFile file =
@@ -439,7 +439,7 @@ public class SAFFileManager {
 
     // Native usage
     @SuppressWarnings("UnusedDeclaration")
-    public boolean delete(String contentUrl) {
+    synchronized public boolean delete(String contentUrl) {
         final CachedDocumentFile file =
                 getDocumentFileWithValidPermissions(contentUrl, "rw", true);
         if (file == null) {
@@ -527,7 +527,7 @@ public class SAFFileManager {
         return isTreeUri(Uri.parse(contentUrl));
     }
 
-    public boolean rename(String contentUrl, String displayName) {
+    synchronized public boolean rename(String contentUrl, String displayName) {
         final CachedDocumentFile file =
                 getDocumentFileWithValidPermissions(contentUrl, "rw", true);
         if (file == null) {
@@ -548,7 +548,7 @@ public class SAFFileManager {
 
     // Native usage
     @SuppressWarnings("UnusedDeclaration")
-    public boolean mkdir(String contentUrl, boolean createParentDirectories) {
+    synchronized public boolean mkdir(String contentUrl, boolean createParentDirectories) {
         if (isDir(contentUrl)) {
             return true;
         }
@@ -610,7 +610,7 @@ public class SAFFileManager {
         return parent;
     }
 
-    private CachedDocumentFile createFile(SAFFile file, boolean force) {
+    synchronized private CachedDocumentFile createFile(SAFFile file, boolean force) {
 
         List<String> pathSegments = file.getSegments();
 
