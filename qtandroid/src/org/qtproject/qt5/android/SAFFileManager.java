@@ -631,7 +631,7 @@ public class SAFFileManager {
             return foundFile;
         }
 
-        final CachedDocumentFile newFile = createFile(parent, filename, mimeType);
+        final CachedDocumentFile newFile = createDocumentImpl(parent, filename, mimeType);
         if (newFile == null) {
             return null;
         }
@@ -768,7 +768,7 @@ public class SAFFileManager {
         return null;
     }
 
-    private CachedDocumentFile createFile(Uri parent, String displayName, String mimeType) {
+    private CachedDocumentFile createDocumentImpl(Uri parent, String displayName, String mimeType) {
         try {
             final Uri fileUri = DocumentsContract.createDocument(mCtx.getContentResolver(),
                     parent, mimeType, displayName);
@@ -796,7 +796,7 @@ public class SAFFileManager {
     }
 
     private CachedDocumentFile createDirectory(Uri parent, String displayName) {
-        return createFile(parent, displayName, DocumentsContract.Document.MIME_TYPE_DIR);
+        return createDocumentImpl(parent, displayName, DocumentsContract.Document.MIME_TYPE_DIR);
     }
 
     // we need some workarounds on ChromeOS
