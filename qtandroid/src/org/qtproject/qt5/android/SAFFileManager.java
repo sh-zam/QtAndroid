@@ -586,10 +586,11 @@ public class SAFFileManager {
             final CachedDocumentFile existingFile = findFile(parent, segment);
 
             if (existingFile != null) {
-                Log.d(TAG, "File exists: " + existingFile.getUri().toString());
+                Log.d(TAG, "Exists: " + existingFile.getUri().toString());
                 if (existingFile.isFile()) {
                     mError.setError(FileError.UNSPECIFIED_ERROR);
-                    mError.setErrorString("Couldn't create a directory at the specified path");
+                    mError.setErrorString(
+                            "Couldn't create a directory at the specified path, because a file with same name exists");
                     return null;
                 }
 
