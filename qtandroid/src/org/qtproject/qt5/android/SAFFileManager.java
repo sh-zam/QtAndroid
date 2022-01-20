@@ -25,6 +25,7 @@ import java.util.Map;
 
 @SuppressWarnings("unused")
 class FileError {
+    public static final String TAG = "SAFFileManager.FileError";
     public static final int NO_ERROR = 0;
     public static final int READ_ERROR = 1;
     public static final int WRITE_ERROR = 2;
@@ -50,6 +51,9 @@ class FileError {
 
     public void setErrorString(String errorString) {
         this.errorString = errorString;
+        if (error != FileError.NO_ERROR) {
+            Log.w(TAG, errorString);
+        }
     }
 
     public int getError() {
