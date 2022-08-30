@@ -175,7 +175,7 @@ public class CachedDocumentFile {
             final ContentResolver resolver = ctx.getContentResolver();
             final String[] columns = {DocumentsContract.Document.COLUMN_DOCUMENT_ID};
             cursor = resolver.query(uri, columns, null, null, null);
-            exists = cursor.getCount() > 0;
+            exists = cursor !=null && cursor.getCount() > 0;
         } catch (Exception e) {
             Log.e(TAG, "exists(): Failed query: " + e);
             exists = false;
@@ -194,7 +194,7 @@ public class CachedDocumentFile {
             final ContentResolver resolver = ctx.getContentResolver();
             final String[] columns = {column};
             cursor = resolver.query(uri, columns, null, null, null);
-            if (cursor.moveToFirst() && !cursor.isNull(0)) {
+            if (cursor != null && cursor.moveToFirst() && !cursor.isNull(0)) {
                 return cursor.getLong(0);
             } else {
                 return defaultValue;
