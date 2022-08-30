@@ -20,10 +20,13 @@ import android.support.test.runner.AndroidJUnit4;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.qtproject.qt5.android.ContentUriPermission;
 import org.qtproject.qt5.android.SAFFileManager;
 
 import java.io.FileNotFoundException;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.List;
 
 @RunWith(AndroidJUnit4.class)
 public class SAFCreateFilesTest {
@@ -168,6 +171,25 @@ public class SAFCreateFilesTest {
     }
 
     @Test
+    public void wrongPaths() throws Exception {
+        final Uri dummyUri = Uri.parse("content://com.android.externalstorage.documents/tree/primary%3AdoesntExist");
+        ContentUriPermission permission = new ContentUriPermission(
+                Uri.parse("content://com.android.externalstorage.documents/tree/primary%3AdoesntExist"),
+                true, true);
+        Field permissionField = SAFFileManager.class.getDeclaredField("mCachedPermissions");
+        permissionField.setAccessible(true);
+
+        assertTrue(manager.exists(uri.toString()));
+        assertFalse(manager.exists(dummyUri.toString()));
+
+        // we add ourselves to the cache
+        List<ContentUriPermission> permissions = (List<ContentUriPermission>) permissionField.get(manager);
+        permissions.add(permission);
+
+        assertFalse(manager.exists(dummyUri.toString() + "/wrongpath"));
+    }
+
+    @Test
     public void renameFiles() {
         ArrayList<Integer> fileDescriptors = new ArrayList<>();
 
@@ -207,7 +229,6 @@ public class SAFCreateFilesTest {
         assertNotEquals(manager.getFileName(path), name);
         assertFalse(manager.isDir(path));
     }
-
 
     /* test the column size
     @Test

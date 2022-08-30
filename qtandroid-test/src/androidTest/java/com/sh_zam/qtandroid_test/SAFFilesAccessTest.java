@@ -52,6 +52,15 @@ public class SAFFilesAccessTest {
         assertTrue(manager.canWrite(uriStr));
     }
 
+    @Test
+    public void wrongPaths() {
+        assertFalse(manager.exists("nothing"));
+        assertFalse(manager.exists("content://nothing"));
+        assertFalse(manager.exists("content://com.android.externalstorage.documents/"));
+        assertFalse(manager.exists("content://com.android.externalstorage.documents/document/"));
+        assertFalse(manager.exists("content://com.android.externalstorage.documents/document/primary"));
+    }
+
     // Known failures on ChromeOS:
     // @Test
     // public void writeToFile() {

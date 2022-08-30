@@ -15,6 +15,8 @@ import android.provider.DocumentsContract;
 import android.util.Log;
 import android.webkit.MimeTypeMap;
 
+import androidx.annotation.NonNull;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -90,7 +92,7 @@ public class SAFFileManager {
     private final HashMap<Integer, ParcelFileDescriptor> m_parcelFileDescriptors = new HashMap<>();
 
     private final FileError mError = new FileError();
-    private List<UriPermission> mCachedPermissions;
+    private List<ContentUriPermission> mCachedPermissions = new ArrayList<>();
     private final ArrayList<Uri> mCachedListDocumentFiles = new ArrayList<>();
 
     SAFFileManager(Context ctx) {
@@ -128,7 +130,13 @@ public class SAFFileManager {
     }
 
     void resetCachedPermission() {
-        mCachedPermissions = mCtx.getContentResolver().getPersistedUriPermissions();
+        List<UriPermission> permissions = mCtx.getContentResolver().getPersistedUriPermissions();
+        for (UriPermission permission: permissions) {
+            mCachedPermissions.add(new ContentUriPermission(
+                    permission.getUri(),
+                    permission.isReadPermission(),
+                    permission.isWritePermission()));
+        }
     }
 
     /**
@@ -144,7 +152,7 @@ public class SAFFileManager {
      * ACTION_OPEN_DOCUMENT_TREE i.e only if we have permission to the Uri.
      */
     Uri getProperlyEncodedUriWithPermissions(Uri uri, String openMode) {
-        if (mCachedPermissions == null) {
+        if (mCachedPermissions.isEmpty()) {
             resetCachedPermission();
         }
         final String uriPath = uri.getPath();

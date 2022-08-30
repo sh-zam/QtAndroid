@@ -48,7 +48,7 @@ public class CachedDocumentFile {
             final ContentResolver resolver = context.getContentResolver();
             cursor = resolver.query(uri, columns, null, null, null);
 
-            if (cursor.moveToFirst()) {
+            if (cursor != null && cursor.moveToFirst()) {
                 return new CachedDocumentFile(context,
                         SAFUtils.getColumnValStringOrNull(cursor, DocumentsContract.Document.COLUMN_DISPLAY_NAME),
                         SAFUtils.getColumnValStringOrNull(cursor, DocumentsContract.Document.COLUMN_DOCUMENT_ID),
