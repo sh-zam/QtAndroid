@@ -721,7 +721,9 @@ public class SAFFileManager {
             documentFile = mCachedDocumentFiles.get(parent);
         } else {
             documentFile = CachedDocumentFile.fromFileUri(mCtx, parent);
-            mCachedDocumentFiles.put(documentFile.getUri(), documentFile);
+            if (documentFile != null) {
+                mCachedDocumentFiles.put(documentFile.getUri(), documentFile);
+            }
         }
 
         for (int i = 0; i < pathSegments.size(); ++i) {
