@@ -95,13 +95,13 @@ public class QtNative
     private static double m_displayMetricsYDpi = .0;
     private static double m_displayMetricsScaledDensity = 1.0;
     private static double m_displayMetricsDensity = 1.0;
-    private static int m_oldx, m_oldy;
     private static final int m_moveThreshold = 0;
     private static ClipboardManager m_clipboardManager = null;
     private static Method m_checkSelfPermissionMethod = null;
     private static Boolean m_tabletEventSupported = null;
     private static boolean m_usePrimaryClip = false;
     public static QtThread m_qtThread = new QtThread();
+    private static final QtInputEventDispatcher sInputEventDispatcher = new QtInputEventDispatcher();
     private static Method m_addItemMethod = null;
 
 
@@ -152,6 +152,11 @@ public class QtNative
         }
     }
 
+    public static QtInputEventDispatcher getInputEventDispatcher() {
+        // TODO(sh_zam): do we need to care about synchronization?
+        return sInputEventDispatcher;
+    }
+
     public static String[] getStringArray(String joinedString)
     {
         return joinedString.split(",");
@@ -160,6 +165,7 @@ public class QtNative
     // this method loads full path libs
     public static void loadQtLibraries(final ArrayList<String> libraries)
     {
+        sInputEventDispatcher.start();
         m_qtThread.run(new Runnable() {
             @Override
             public void run() {
@@ -430,150 +436,6 @@ public class QtNative
                      m_service.stopSelf();
             }
         });
-    }
-
-    //@ANDROID-9
-    static private int getAction(int index, MotionEvent event)
-    {
-        int action = event.getActionMasked();
-        if (action == MotionEvent.ACTION_MOVE) {
-            int hsz = event.getHistorySize();
-            if (hsz > 0) {
-                float x = event.getX(index);
-                float y = event.getY(index);
-                for (int h = 0; h < hsz; ++h) {
-                    if ( event.getHistoricalX(index, h) != x ||
-                         event.getHistoricalY(index, h) != y )
-                        return 1;
-                }
-                return 2;
-            }
-            return 1;
-        }
-        if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN && index == event.getActionIndex()) {
-            return 0;
-        } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP && index == event.getActionIndex()) {
-            return 3;
-        }
-        return 2;
-    }
-    //@ANDROID-9
-
-    static public boolean sendTouchEvent(MotionEvent event, int id)
-    {
-        int pointerType = 0;
-
-        if (m_tabletEventSupported == null)
-            m_tabletEventSupported = isTabletEventSupported();
-
-        switch (event.getToolType(0)) {
-        case MotionEvent.TOOL_TYPE_STYLUS:
-            pointerType = 1; // QTabletEvent::Pen
-            break;
-        case MotionEvent.TOOL_TYPE_ERASER:
-            pointerType = 3; // QTabletEvent::Eraser
-            break;
-        }
-
-        if (event.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE) {
-            return sendMouseEvent(event, id);
-        } else if (m_tabletEventSupported && pointerType != 0) {
-            final int historySize = event.getHistorySize();
-            for (int h = 0; h < historySize; h++) {
-                float tiltRot = event.getHistoricalAxisValue(MotionEvent.AXIS_TILT, h);
-                float orientation = event.getHistoricalAxisValue(MotionEvent.AXIS_ORIENTATION, h);
-
-                float tiltX = (float) Math.toDegrees(-Math.sin(orientation) * tiltRot);
-                float tiltY = (float) Math.toDegrees(Math.cos(orientation) * tiltRot);
-
-                tabletEvent(id, event.getDeviceId(), event.getHistoricalEventTime(h), event.getActionMasked(),
-                            pointerType, event.getButtonState(), event.getHistoricalX(h),
-                            event.getHistoricalY(h), event.getHistoricalPressure(h), tiltX, tiltY,
-                            (float)Math.toDegrees(orientation), event.getMetaState());
-            }
-            float tiltRot = event.getAxisValue(MotionEvent.AXIS_TILT);
-            float orientation = event.getAxisValue(MotionEvent.AXIS_ORIENTATION);
-            float tiltX = (float) Math.toDegrees(-Math.sin(orientation) * tiltRot);
-            float tiltY = (float) Math.toDegrees(Math.cos(orientation) * tiltRot);
-            tabletEvent(id, event.getDeviceId(), event.getEventTime(), event.getActionMasked(), pointerType,
-                event.getButtonState(), event.getX(), event.getY(), event.getPressure(), tiltX, tiltY,
-                (float) Math.toDegrees(orientation), event.getMetaState());
-            return true;
-        } else {
-            touchBegin(id);
-            for (int i = 0; i < event.getPointerCount(); ++i) {
-                    touchAdd(id,
-                             event.getPointerId(i),
-                             getAction(i, event),
-                             i == 0,
-                             (int)event.getX(i),
-                             (int)event.getY(i),
-                             event.getTouchMajor(i),
-                             event.getTouchMinor(i),
-                             event.getOrientation(i),
-                             event.getPressure(i));
-            }
-            touchEnd(id, event.getAction());
-            return true;
-        }
-    }
-
-    static public void sendTrackballEvent(MotionEvent event, int id)
-    {
-        sendMouseEvent(event,id);
-    }
-
-    static public boolean sendGenericMotionEvent(MotionEvent event, int id)
-    {
-        if (!event.isFromSource(InputDevice.SOURCE_CLASS_POINTER)) {
-            return false;
-        }
-
-        if (event.isFromSource(InputDevice.SOURCE_MOUSE)) {
-                return sendMouseEvent(event, id);
-        } else if ((event.getSource() & (InputDevice.SOURCE_STYLUS |
-                                         InputDevice.SOURCE_TOUCHPAD |
-                                         InputDevice.SOURCE_TOUCHSCREEN)) != 0) {
-
-            return sendTouchEvent(event, id);
-        }
-        return false;
-    }
-
-    static public boolean sendMouseEvent(MotionEvent event, int id)
-    {
-        switch (event.getActionMasked()) {
-            case MotionEvent.ACTION_UP:
-                mouseUp(id, (int) event.getX(), (int) event.getY(), event.getMetaState());
-                break;
-
-            case MotionEvent.ACTION_DOWN:
-                mouseDown(id, (int) event.getX(), (int) event.getY(), event.getMetaState(), event.getButtonState());
-                m_oldx = (int) event.getX();
-                m_oldy = (int) event.getY();
-                break;
-            case MotionEvent.ACTION_HOVER_MOVE:
-            case MotionEvent.ACTION_MOVE:
-                if (event.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE) {
-                    mouseMove(id, (int) event.getX(), (int) event.getY(), event.getMetaState());
-                } else {
-                    int dx = (int) (event.getX() - m_oldx);
-                    int dy = (int) (event.getY() - m_oldy);
-                    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
-                        mouseMove(id, (int) event.getX(), (int) event.getY(), event.getMetaState());
-                        m_oldx = (int) event.getX();
-                        m_oldy = (int) event.getY();
-                    }
-                }
-                break;
-            case MotionEvent.ACTION_SCROLL:
-                mouseWheel(id, (int) event.getX(), (int) event.getY(),
-                        event.getAxisValue(MotionEvent.AXIS_HSCROLL), event.getAxisValue(MotionEvent.AXIS_VSCROLL));
-                break;
-            default:
-                return false;
-        }
-        return true;
     }
 
     public static Context getContext() {
@@ -1056,22 +918,6 @@ public class QtNative
                                                 double density);
     public static native void handleOrientationChanged(int newRotation, int nativeOrientation);
     // screen methods
-
-    // pointer methods
-    public static native void mouseDown(int winId, int x, int y, int modifier, int actionButton);
-    public static native void mouseUp(int winId, int x, int y, int modifiers);
-    public static native void mouseMove(int winId, int x, int y, int modifier);
-    public static native void mouseWheel(int winId, int x, int y, float hdelta, float vdelta);
-    public static native void touchBegin(int winId);
-    public static native void touchAdd(int winId, int pointerId, int action, boolean primary, int x, int y, float major, float minor, float rotation, float pressure);
-    public static native void touchEnd(int winId, int action);
-    public static native void longPress(int winId, int x, int y);
-    // pointer methods
-
-    // tablet methods
-    public static native boolean isTabletEventSupported();
-    public static native void tabletEvent(int winId, int deviceId, long time, int action, int pointerType, int buttonState, float x, float y, float pressure, float tiltX, float tiltY, float rotation, int modifiers);
-    // tablet methods
 
     // keyboard methods
     public static native void keyDown(int key, int unicode, int modifier, boolean autoRepeat);

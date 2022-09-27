@@ -53,24 +53,28 @@ public class QtLayout extends ViewGroup
 {
     private GestureDetector m_gestureDetector;
     private Runnable m_startApplicationRunnable;
+    private QtInputEventDispatcher inputEventDispatcher;
 
     public QtLayout(Context context, Runnable startRunnable)
     {
         super(context);
         m_startApplicationRunnable = startRunnable;
         initializeGestureDetector(context);
+        inputEventDispatcher = QtNative.getInputEventDispatcher();
     }
 
     public QtLayout(Context context, AttributeSet attrs)
     {
         super(context, attrs);
         initializeGestureDetector(context);
+        inputEventDispatcher = QtNative.getInputEventDispatcher();
     }
 
     public QtLayout(Context context, AttributeSet attrs, int defStyle)
     {
         super(context, attrs, defStyle);
         initializeGestureDetector(context);
+        inputEventDispatcher = QtNative.getInputEventDispatcher();
     }
 
     private void initializeGestureDetector(Context context)
@@ -78,7 +82,7 @@ public class QtLayout extends ViewGroup
         m_gestureDetector =
             new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
                 public void onLongPress(MotionEvent event) {
-                    QtNative.longPress(getId(), (int) event.getX(), (int) event.getY());
+                    inputEventDispatcher.onLongPress(event, getId());
                 }
             });
         m_gestureDetector.setIsLongpressEnabled(true);
@@ -278,7 +282,7 @@ public class QtLayout extends ViewGroup
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        QtNative.sendTouchEvent(event, getId());
+        inputEventDispatcher.onTouchEvent(event, getId());
         m_gestureDetector.onTouchEvent(event);
         return true;
     }
@@ -286,13 +290,13 @@ public class QtLayout extends ViewGroup
     @Override
     public boolean onTrackballEvent(MotionEvent event)
     {
-        QtNative.sendTrackballEvent(event, getId());
+        inputEventDispatcher.onTrackballEvent(event, getId());
         return true;
     }
 
     @Override
     public boolean onGenericMotionEvent(MotionEvent event)
     {
-        return QtNative.sendGenericMotionEvent(event, getId());
+        return inputEventDispatcher.sendGenericMotionEvent(event, getId());
     }
 }
