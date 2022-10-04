@@ -7,8 +7,6 @@ import android.util.Log;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 
-import androidx.annotation.NonNull;
-
 public class QtInputEventDispatcher extends Thread {
 
     private static final String TAG = "QtInputEventDispatcher";
@@ -26,16 +24,32 @@ public class QtInputEventDispatcher extends Thread {
     public void run() {
         try {
             Looper.prepare();
-            mEventHandler =
-                    new Handler(
-                            Looper.myLooper(),
-                            new Handler.Callback() {
-                                @Override
-                                public boolean handleMessage(@NonNull Message msg) {
-                                    return true;
-                                }
-                            });
-
+            mEventHandler = new Handler(Looper.myLooper(), new Handler.Callback() {
+                @Override
+                public boolean handleMessage(Message msg) {
+                    MotionEvent event = (MotionEvent)msg.obj;
+                    float tiltRot = event.getAxisValue(MotionEvent.AXIS_TILT);
+                    float orientation = event.getAxisValue(MotionEvent.AXIS_ORIENTATION);
+                    float tiltX = (float) Math.toDegrees(-Math.sin(orientation) * tiltRot);
+                    float tiltY = (float) Math.toDegrees(Math.cos(orientation) * tiltRot);
+                    tabletEvent(
+                            -1,
+                            event.getDeviceId(),
+                            System.currentTimeMillis(),
+                            event.getActionMasked(),
+                            1,
+                            event.getButtonState(),
+                            event.getX(),
+                            event.getY(),
+                            event.getPressure(),
+                            tiltX,
+                            tiltY,
+                            (float) Math.toDegrees(orientation),
+                            event.getMetaState());
+                    event.recycle();
+                    return true;
+                }
+            });
             Looper.loop();
         } catch (Exception e) {
             Log.e(TAG, "Looper halted, error = " + e);
@@ -43,79 +57,22 @@ public class QtInputEventDispatcher extends Thread {
         }
     }
 
-    public Handler getEventHandler() {
-        return mEventHandler;
-    }
-
-    // QtInputEventDispatcherThread
     public void onTouchEvent(MotionEvent event, int id) {
-        if (mEventHandler == null) {
-            return;
-        }
-        Message msg =
-                Message.obtain(
-                        mEventHandler,
-                        new Runnable() {
-                            @Override
-                            public void run() {
-                                sendTouchEvent(event, id);
-                            }
-                        });
-        msg.sendToTarget();
+        sendTouchEvent(event, id);
     }
 
-    // QtInputEventDispatcherThread
     public void onTrackballEvent(MotionEvent event, int id) {
-        if (mEventHandler == null) {
-            return;
-        }
-        Message msg =
-                Message.obtain(
-                        mEventHandler,
-                        new Runnable() {
-                            @Override
-                            public void run() {
-                                sendTrackballEvent(event, id);
-                            }
-                        });
-        msg.sendToTarget();
+        sendTrackballEvent(event, id);
     }
 
-    // QtInputEventDispatcherThread
     public void onMouseEvent(MotionEvent event, int id) {
-        if (mEventHandler == null) {
-            return;
-        }
-        Message msg =
-                Message.obtain(
-                        mEventHandler,
-                        new Runnable() {
-                            @Override
-                            public void run() {
-                                sendMouseEvent(event, id);
-                            }
-                        });
-        msg.sendToTarget();
+        sendMouseEvent(event, id);
     }
 
-    // QtInputEventDispatcherThread
     public void onLongPress(MotionEvent event, int id) {
-        if (mEventHandler == null) {
-            return;
-        }
-        Message msg =
-                Message.obtain(
-                        mEventHandler,
-                        new Runnable() {
-                            @Override
-                            public void run() {
-                                longPress(id, (int)event.getX(), (int)event.getY());
-                            }
-                        });
-        msg.sendToTarget();
+        dispatchLongPress(id, (int) event.getX(), (int) event.getY());
     }
 
-    // MainThread
     public boolean sendGenericMotionEvent(MotionEvent event, int id) {
         if (!event.isFromSource(InputDevice.SOURCE_CLASS_POINTER)) {
             return false;
@@ -161,10 +118,11 @@ public class QtInputEventDispatcher extends Thread {
         return 2;
     }
 
-    private static boolean sendTouchEvent(MotionEvent event, int id) {
+    private boolean sendTouchEvent(MotionEvent event, int id) {
         int pointerType = 0;
-        Log.w(TAG, event.toString());
-        Log.w(TAG, "Time: " + event.getEventTime() + "  tp: " + event.getX() + ", " + event.getY());
+        // Log.w(TAG, event.toString());
+        // Log.w(TAG, "Time: " + event.getEventTime() + "  tp: " + event.getX() + ", " +
+        // event.getY());
 
         if (sTabletEventSupported == null) sTabletEventSupported = isTabletEventSupported();
 
@@ -182,51 +140,57 @@ public class QtInputEventDispatcher extends Thread {
         } else if (sTabletEventSupported && pointerType != 0) {
             final int historySize = event.getHistorySize();
             for (int h = 0; h < historySize; h++) {
-                Log.w(TAG, "h = " + historySize + ", " + event.getHistorySize());
+                // Log.w(TAG, "h = " + historySize + ", " + event.getHistorySize());
                 float tiltRot = event.getHistoricalAxisValue(MotionEvent.AXIS_TILT, h);
                 float orientation = event.getHistoricalAxisValue(MotionEvent.AXIS_ORIENTATION, h);
 
                 float tiltX = (float) Math.toDegrees(-Math.sin(orientation) * tiltRot);
                 float tiltY = (float) Math.toDegrees(Math.cos(orientation) * tiltRot);
 
-                tabletEvent(
-                        id,
-                        event.getDeviceId(),
-                        event.getHistoricalEventTime(h),
-                        event.getActionMasked(),
-                        pointerType,
-                        event.getButtonState(),
-                        event.getHistoricalX(h),
-                        event.getHistoricalY(h),
-                        event.getHistoricalPressure(h),
-                        tiltX,
-                        tiltY,
-                        (float) Math.toDegrees(orientation),
-                        event.getMetaState());
+                // dispatchTabletEvent(
+                //         id,
+                //         event.getDeviceId(),
+                //         System.currentTimeMillis(),
+                //         event.getActionMasked(),
+                //         pointerType,
+                //         event.getButtonState(),
+                //         event.getHistoricalX(h),
+                //         event.getHistoricalY(h),
+                //         event.getHistoricalPressure(h),
+                //         tiltX,
+                //         tiltY,
+                //         (float) Math.toDegrees(orientation),
+                //         event.getMetaState());
             }
             float tiltRot = event.getAxisValue(MotionEvent.AXIS_TILT);
             float orientation = event.getAxisValue(MotionEvent.AXIS_ORIENTATION);
             float tiltX = (float) Math.toDegrees(-Math.sin(orientation) * tiltRot);
             float tiltY = (float) Math.toDegrees(Math.cos(orientation) * tiltRot);
-            tabletEvent(
-                    id,
-                    event.getDeviceId(),
-                    event.getEventTime(),
-                    event.getActionMasked(),
-                    pointerType,
-                    event.getButtonState(),
-                    event.getX(),
-                    event.getY(),
-                    event.getPressure(),
-                    tiltX,
-                    tiltY,
-                    (float) Math.toDegrees(orientation),
-                    event.getMetaState());
+//             tabletEvent(
+//                     id,
+//                     event.getDeviceId(),
+//                     System.currentTimeMillis(),
+//                     event.getActionMasked(),
+//                     pointerType,
+//                     event.getButtonState(),
+//                     event.getX(),
+//                     event.getY(),
+//                     event.getPressure(),
+//                     tiltX,
+//                     tiltY,
+//                     (float) Math.toDegrees(orientation),
+//                     event.getMetaState());
+
+            Message.obtain(mEventHandler, 0,
+            MotionEvent.obtain(event.getDownTime(), System.currentTimeMillis(),
+                    event.getActionMasked(), event.getX(), event.getY(), event.getPressure(),
+                    event.getSize(), event.getMetaState(), event.getXPrecision(), event.getYPrecision(),
+                    event.getDeviceId(), event.getEdgeFlags())).sendToTarget();
             return true;
         } else {
-            touchBegin(id);
+            dispatchTouchBegin(id);
             for (int i = 0; i < event.getPointerCount(); ++i) {
-                touchAdd(
+                dispatchTouchAdd(
                         id,
                         event.getPointerId(i),
                         getAction(i, event),
@@ -238,12 +202,12 @@ public class QtInputEventDispatcher extends Thread {
                         event.getOrientation(i),
                         event.getPressure(i));
             }
-            touchEnd(id, event.getAction());
+            dispatchTouchEnd(id, event.getAction());
             return true;
         }
     }
 
-    private static void sendTrackballEvent(MotionEvent event, int id) {
+    private void sendTrackballEvent(MotionEvent event, int id) {
         sendMouseEvent(event, id);
     }
 
@@ -261,14 +225,14 @@ public class QtInputEventDispatcher extends Thread {
         }
     }
 
-    private static boolean sendMouseEvent(MotionEvent event, int id) {
+    private boolean sendMouseEvent(MotionEvent event, int id) {
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_UP:
-                mouseUp(id, (int) event.getX(), (int) event.getY(), event.getMetaState());
+                dispatchMouseUp(id, (int) event.getX(), (int) event.getY(), event.getMetaState());
                 break;
 
             case MotionEvent.ACTION_DOWN:
-                mouseDown(
+                dispatchMouseDown(
                         id,
                         (int) event.getX(),
                         (int) event.getY(),
@@ -280,19 +244,21 @@ public class QtInputEventDispatcher extends Thread {
             case MotionEvent.ACTION_HOVER_MOVE:
             case MotionEvent.ACTION_MOVE:
                 if (event.getToolType(0) == MotionEvent.TOOL_TYPE_MOUSE) {
-                    mouseMove(id, (int) event.getX(), (int) event.getY(), event.getMetaState());
+                    dispatchMouseMove(
+                            id, (int) event.getX(), (int) event.getY(), event.getMetaState());
                 } else {
                     int dx = (int) (event.getX() - sOldX);
                     int dy = (int) (event.getY() - sOldY);
                     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
-                        mouseMove(id, (int) event.getX(), (int) event.getY(), event.getMetaState());
+                        dispatchMouseMove(
+                                id, (int) event.getX(), (int) event.getY(), event.getMetaState());
                         sOldX = (int) event.getX();
                         sOldY = (int) event.getY();
                     }
                 }
                 break;
             case MotionEvent.ACTION_SCROLL:
-                mouseWheel(
+                dispatchMouseWheel(
                         id,
                         (int) event.getX(),
                         (int) event.getY(),
@@ -305,6 +271,117 @@ public class QtInputEventDispatcher extends Thread {
         return true;
     }
 
+    private void dispatchMouseDown(int winId, int x, int y, int modifier, int actionButton) {}
+
+    private void dispatchMouseUp(int winId, int x, int y, int modifiers) {}
+
+    private void dispatchMouseMove(int winId, int x, int y, int modifier) {}
+
+    private void dispatchMouseWheel(int winId, int x, int y, float hdelta, float vdelta) {}
+
+    private void dispatchTouchBegin(int winId) {
+        Message.obtain(
+                        mEventHandler,
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                touchBegin(winId);
+                            }
+                        })
+                .sendToTarget();
+    }
+
+    private void dispatchTouchAdd(
+            int winId,
+            int pointerId,
+            int action,
+            boolean primary,
+            int x,
+            int y,
+            float major,
+            float minor,
+            float rotation,
+            float pressure) {
+        Message.obtain(
+                        mEventHandler,
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                touchAdd(
+                                        winId, pointerId, action, primary, x, y, major, minor,
+                                        rotation, pressure);
+                            }
+                        })
+                .sendToTarget();
+    }
+
+    private void dispatchTouchEnd(int winId, int action) {
+        Message.obtain(
+                        mEventHandler,
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                touchEnd(winId, action);
+                            }
+                        })
+                .sendToTarget();
+    }
+
+    private void dispatchLongPress(int winId, int x, int y) {
+        if (mEventHandler == null) {
+            return;
+        }
+        Message.obtain(
+                        mEventHandler,
+                        new Runnable() {
+                            @Override
+                            public void run() {
+                                longPress(winId, x, y);
+                            }
+                        })
+                .sendToTarget();
+    }
+
+    private void dispatchTabletEvent(
+            int winId,
+            int deviceId,
+            long time,
+            int action,
+            int pointerType,
+            int buttonState,
+            float x,
+            float y,
+            float pressure,
+            float tiltX,
+            float tiltY,
+            float rotation,
+            int modifiers) {
+
+        if (mEventHandler == null) {
+            return;
+        }
+        Message msg =
+                Message.obtain(
+                        mEventHandler,
+                        () ->
+                                tabletEvent(
+                                        winId,
+                                        deviceId,
+                                        time,
+                                        action,
+                                        pointerType,
+                                        buttonState,
+                                        x,
+                                        y,
+                                        pressure,
+                                        tiltX,
+                                        tiltY,
+                                        rotation,
+                                        modifiers));
+        msg.sendToTarget();
+    }
+
+    // natives
     private static native void mouseDown(int winId, int x, int y, int modifier, int actionButton);
 
     private static native void mouseUp(int winId, int x, int y, int modifiers);
@@ -349,8 +426,12 @@ public class QtInputEventDispatcher extends Thread {
             int modifiers);
 
     public static native void keyDown(int key, int unicode, int modifier, boolean autoRepeat);
+
     public static native void keyUp(int key, int unicode, int modifier, boolean autoRepeat);
+
     public static native void keyboardVisibilityChanged(boolean visibility);
+
     public static native void keyboardGeometryChanged(int x, int y, int width, int height);
+
     public static native void handleLocationChanged(int id, int x, int y);
 }
