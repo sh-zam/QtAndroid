@@ -153,7 +153,6 @@ public class QtNative
     }
 
     public static QtInputEventDispatcher getInputEventDispatcher() {
-        // TODO(sh_zam): do we need to care about synchronization?
         return sInputEventDispatcher;
     }
 
@@ -166,6 +165,7 @@ public class QtNative
     public static void loadQtLibraries(final ArrayList<String> libraries)
     {
         sInputEventDispatcher.start();
+        Log.i(QtTAG, "InputEventDispatcherStarted");
         m_qtThread.run(new Runnable() {
             @Override
             public void run() {

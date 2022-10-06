@@ -100,7 +100,6 @@ public class QtInputEventDispatcher extends Thread {
     }
 
     private static boolean canHandleMouseAction(MotionEvent event) {
-        // TODO(sh-zam): use masks
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_DOWN:
