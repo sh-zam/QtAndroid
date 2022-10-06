@@ -290,7 +290,7 @@ public class QtLayout extends ViewGroup
     @Override
     public boolean onTrackballEvent(MotionEvent event)
     {
-        inputEventDispatcher.onTrackballEvent(event, getId());
+        inputEventDispatcher.onCommonEvent(event, getId());
         return true;
     }
 
