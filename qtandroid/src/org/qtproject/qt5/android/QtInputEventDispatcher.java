@@ -93,7 +93,7 @@ public class QtInputEventDispatcher extends Thread {
                                 | InputDevice.SOURCE_TOUCHSCREEN))
                 != 0) {
 
-            onCommonEvent(event, id);
+            onTouchEvent(event, id);
             return true;
         }
         return false;
